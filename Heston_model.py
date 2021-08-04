@@ -624,11 +624,11 @@ def hedging_HESTON_product(S, r, params, call_expiration=1 / 365, put_expiration
 
         fig.add_trace(go.Histogram(x=np.log(S_ / S[0]), histnorm='probability', name=steps // k, opacity=0.5,
                                    xbins=dict(size=0.025)), row=1, col=1)
-        fig.add_trace(go.Scatter(x=np.arange(0, len(S), k), y=X, name=steps // k, mode='lines+markers'), row=1, col=3)
-        fig.add_trace(go.Scatter(x=np.arange(0, len(S), k), y=S_, name='spot' + str(steps // k), mode='lines'),
+        fig.add_trace(go.Scattergl(x=np.arange(0, len(S), k), y=X, name=steps // k, mode='lines+markers'), row=1, col=3)
+        fig.add_trace(go.Scattergl(x=np.arange(0, len(S), k), y=S_, name='spot' + str(steps // k), mode='lines'),
                       row=2, col=1)
 
-    fig.add_trace(go.Scatter(x=dt, y=error_list, mode='lines+markers', name='error'), row=1, col=2)
+    fig.add_trace(go.Scattergl(x=dt, y=error_list, mode='lines+markers', name='error'), row=1, col=2)
 
     fig.update_xaxes(title_text="ln(S)", row=1, col=1)
     fig.update_xaxes(title_text="timestep", row=1, col=2)
@@ -997,17 +997,17 @@ def simple_hedging_BS(S, r, params, days_count, call_expiration=30 / 365, put_ex
                 fig.add_trace(
                     go.Histogram(x=np.log(S_[1:] / S_[:-1]), histnorm='probability', name=steps // k, opacity=0.5,
                                  xbins=dict(size=0.01)), row=1, col=1)
-                fig.add_trace(go.Scatter(x=np.arange(0, len(S), k), y=X, name=steps // k, mode='lines+markers'),
+                fig.add_trace(go.Scattergl(x=np.arange(0, len(S), k), y=X, name=steps // k, mode='lines+markers'),
                               row=1, col=3)
                 fig.add_trace(
-                    go.Scatter(x=np.arange(0, len(S), k), y=S_, name='spot' + str(steps // k), mode='lines+markers'),
+                    go.Scattergl(x=np.arange(0, len(S), k), y=S_, name='spot' + str(steps // k), mode='lines+markers'),
                     row=2, col=1)
                 fig.add_trace(
-                    go.Scatter(x=np.arange(0, len(S), k), y=delta_list, name='delta ' + str(steps // k),
-                               mode='lines+markers'),
+                    go.Scattergl(x=np.arange(0, len(S), k), y=delta_list, name='delta ' + str(steps // k),
+                                 mode='lines+markers'),
                     row=3, col=1)
     if plot:
-        fig.add_trace(go.Scatter(x=dt_list, y=np.abs(error_list), mode='lines+markers', name='error'), row=1, col=2)
+        fig.add_trace(go.Scattergl(x=dt_list, y=np.abs(error_list), mode='lines+markers', name='error'), row=1, col=2)
         fig.update_xaxes(title_text="ln(returns)", row=1, col=1)
         fig.update_xaxes(title_text="timestep", row=1, col=2)
         fig.update_yaxes(title_text="error", row=1, col=2)
@@ -1135,17 +1135,17 @@ def simple_hedging_HESTON(S, r, params, days_count, it=0, fig=None, plot=False, 
                                  xbins=dict(size=0.01)),
                     row=1, col=1)
                 fig.add_trace(
-                    go.Scatter(x=np.arange(0, len(S), k), y=X, name=steps // k, mode='lines+markers'),
+                    go.Scattergl(x=np.arange(0, len(S), k), y=X, name=steps // k, mode='lines+markers'),
                     row=1, col=3)
                 fig.add_trace(
-                    go.Scatter(x=np.arange(0, len(S), k), y=S_, name='spot' + str(steps // k), mode='lines+markers'),
+                    go.Scattergl(x=np.arange(0, len(S), k), y=S_, name='spot' + str(steps // k), mode='lines+markers'),
                     row=2, col=1)
                 fig.add_trace(
-                    go.Scatter(x=np.arange(0, len(S), k), y=delta_list, name='delta ' + str(steps // k),
-                               mode='lines+markers'),
+                    go.Scattergl(x=np.arange(0, len(S), k), y=delta_list, name='delta ' + str(steps // k),
+                                 mode='lines+markers'),
                     row=3, col=1)
     if plot:
-        fig.add_trace(go.Scatter(x=dt_list, y=np.abs(error_list), mode='lines+markers', name='error'), row=1, col=2)
+        fig.add_trace(go.Scattergl(x=dt_list, y=np.abs(error_list), mode='lines+markers', name='error'), row=1, col=2)
 
         fig.update_xaxes(title_text="ln(S)", row=1, col=1)
         fig.update_xaxes(title_text="timestep", row=1, col=2)
@@ -1158,7 +1158,7 @@ def simple_hedging_HESTON(S, r, params, days_count, it=0, fig=None, plot=False, 
 
     if (fig is not None) and (not plot):
         fig.add_trace(
-            go.Scatter(x=dt_list, y=np.abs(error_list), mode='lines+markers', name=f'error, it = {it}', opacity=0.7))
+            go.Scattergl(x=dt_list, y=np.abs(error_list), mode='lines+markers', name=f'error, it = {it}', opacity=0.7))
 
     return np.abs(error_list), dt_list
 
@@ -1193,7 +1193,7 @@ def count_mean_error_by_hedging(method='Heston'):
     params = [0.1, 1.00000000e-03, 0.81155610e+00, -1.63466446e-01, 2.66211348e-01]
     fig = go.Figure()
     error_matrix = []
-    days_count = 7
+    days_count = 1
     spot = 31893.78
     r = 0.0
     N = 100
@@ -1213,8 +1213,8 @@ def count_mean_error_by_hedging(method='Heston'):
         error_matrix.append(error_list)
 
     fig.add_trace(
-        go.Scatter(x=x, y=np.mean(error_matrix, axis=0), mode='lines+markers', name=f'Mean error',
-                   marker=dict(color='black')))
+        go.Scattergl(x=x, y=np.mean(error_matrix, axis=0), mode='lines+markers', name=f'Mean error',
+                     marker=dict(color='black')))
     fig.update_layout(title=f'{method}, Days count {days_count}, {params}, {option_type}, N = {N}')
 
     fig.show()
@@ -1245,12 +1245,12 @@ def count_heston_hedging_by_different_sigma():
 
     fig = go.Figure()
     fig.add_trace(
-        go.Scatter(x=sigma_list, y=bs_error, name='error by BS',
-                   mode='lines+markers'),
+        go.Scattergl(x=sigma_list, y=bs_error, name='error by BS',
+                     mode='lines+markers'),
     )
     fig.add_trace(
-        go.Scatter(x=sigma_list, y=h_error, name='error by Heston',
-                   mode='lines+markers'),
+        go.Scattergl(x=sigma_list, y=h_error, name='error by Heston',
+                     mode='lines+markers'),
     )
     fig.update_xaxes(title_text="sigma")
     fig.update_yaxes(title_text="Error")
