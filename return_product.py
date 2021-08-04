@@ -1,16 +1,15 @@
-import argparse
-import sys
-import matplotlib.pyplot as plt
 import numpy as np
-from scipy.stats import norm
-from lib.option_formulas import price_by_BS
-from Heston_model import price_by_heston
-from scipy.optimize import minimize, Bounds, least_squares
 import pandas as pd
+from scipy.stats import norm
+
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import matplotlib.pyplot as plt
 import plotly.express as px
-import pandas as pd
+
+import argparse
+
+from lib.option_formulas import price_by_BS
 
 
 def get_heston_params():
@@ -18,7 +17,7 @@ def get_heston_params():
     return df.kappa.values[0], df.theta.values[0], df.sigma.values[0], df.rho.values[0], df.v0.values[0]
 
 
-def calculations_with_real_spot():
+def get_real_params_from_historical_spot():
     df = pd.read_csv(
         'C:\\Users\\admin\\for python\\Surface for unknown asset with the very good lib\\old_complect\\BTCUSDT.csv',
         usecols=[2], header=None)[::60]

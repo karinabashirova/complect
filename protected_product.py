@@ -1,9 +1,12 @@
+import numpy as np
+import pandas as pd
+
+from scipy.stats import norm
+
+import plotly.graph_objects as go
+
 import argparse
 import sys
-import numpy as np
-from scipy.stats import norm
-import pandas as pd
-import plotly.graph_objects as go
 
 
 def spot_bs_mc(days, volatility, S0, r, M=1000, steps=24 * 12):
@@ -120,7 +123,8 @@ def get_product_price(call_percent, put_percent, S, r, days=30):
     return intrinsic_call / (M - np.mean(nan_count, axis=0)[steps::steps]), intrinsic_put / (M - np.mean(nan_count))
 
 
-def product_price(method, spot, r, call_percent, put_percent, volatility=None, params=None, plot=False, ready_spot=False):
+def product_price(method, spot, r, call_percent, put_percent, volatility=None, params=None, plot=False,
+                  ready_spot=False):
     if method == 'BS':
         if volatility is not None:
             S = spot_bs_mc(days=30, volatility=volatility, S0=spot, r=r, M=5000, steps=12)

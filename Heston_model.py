@@ -1,26 +1,18 @@
-import datetime
-import sys
-from lib.last_table_reader import LastTableReader
-from lib.option_formulas import price_by_BS, OptionType, delta, strike_from_delta, cdf, pdf
-from lib.surface_creation import get_data_by_reader, get_surface
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
+
+import sys
+
 from scipy.stats import norm
 from scipy.optimize import minimize, Bounds, least_squares
-from lib.exchange_data_reader_historical_new_format_backup import HistoricalReaderNewFormat
+from scipy.integrate import quad
+
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
-from lib import plotter
-import argparse
-# from kind_of_u_call import hestonMC, classicMC
-import time
+import matplotlib.pyplot as plt
+
 from lib.useful_things import pprint
-# from numpy import *
-# from sympy import Symbol, integrate, re, sqrt, exp, log, sinh, cosh
-from scipy.integrate import quad, quadrature
-from scipy.stats import shapiro
-from icecream import ic
+from lib.option_formulas import price_by_BS, OptionType, delta, strike_from_delta, cdf, pdf
 
 
 def get_heston_params_from_2_1d_options_and_count_prices_for_different_strikes_and_expirations():
@@ -82,45 +74,6 @@ def get_heston_params_from_2_1d_options_and_count_prices_for_different_strikes_a
     print(price_H_put)
 
 
-def plot_price(price_BS, price_H, name, strikes, times):
-    fig = go.Figure()
-    error_surface = np.abs(price_BS - price_H) / price_BS
-    print(error_surface)
-
-    error_surface[error_surface > 18] = np.nan
-    print(error_surface)
-    fig.add_trace(go.Surface(x=strikes,
-                             y=times,
-                             z=error_surface, name='BS' + name,
-                             opacity=0.75, colorscale='Plotly3', showscale=False))
-
-    # fig.add_trace(go.Surface(x=strikes,
-    #                          y=times,
-    #                          z=price_H, name='Heston' + name,
-    #                          opacity=0.75, colorscale='Viridis', showscale=False))
-    fig.update_layout(
-        title={
-            'text': name,
-            'y': 0.95,
-            'x': 0.5,
-            'xanchor': 'center',
-            'yanchor': 'top'
-        }
-    )
-    fig.update_layout(
-        scene=dict(
-            xaxis=dict(
-                title='strikes'
-            ),
-            yaxis=dict(
-                title='times'),
-            zaxis=dict(
-                title='|BS - H|')
-        )
-    )
-    fig.show()
-
-
 def characteristic_function(u, t, kappa, theta, sigma, rho, v0, S0, r):
     ksi = kappa - sigma * rho * 1j * u
     d = np.sqrt(ksi ** 2 + sigma ** 2 * (u ** 2 + 1j * u))
@@ -164,7 +117,7 @@ def price_by_heston(strike, T, kappa, theta, sigma, rho, v0, S0, r, option_type)
         return c - np.exp(-r * T) * S0 + np.exp(-r * T) * strike
 
 
-def get_product_price(call_percent, put_percent, S, r, days=30):
+def get_call_and_put_prices_for_product(call_percent, put_percent, S, r, days=30):
     M, N = S.shape
     steps = N // days
 
@@ -233,7 +186,7 @@ def product_price(method, spot, r, call_percent, put_percent, volatility=None, p
             print('Heston params vector is None')
             sys.exit(2)
 
-    call_list, put = get_product_price(call_percent, put_percent, S, r=r)
+    call_list, put = get_call_and_put_prices_for_product(call_percent, put_percent, S, r=r)
 
     print(f'CALL: {call_list}\nCALL SUM: {np.sum(call_list)}\nPUT: {put}')
 
@@ -274,7 +227,7 @@ def price_by_heston_approximate(strike, T, kappa, theta, sigma, rho, v0, S0, r, 
 def delta_by_finite_difference(params, spot, call_strike, put_strike, days, r, price_by_spot):
     print(price_by_heston(call_strike, put_strike, days, *params, spot, r))
     ds = 1
-    price_by_spot_plus = get_product_price(call_strike, put_strike, days, *params, spot + ds, r)
+    price_by_spot_plus = get_call_and_put_prices_for_product(call_strike, put_strike, days, *params, spot + ds, r)
     price_by_spot = np.sum(price_by_spot[0]) + price_by_spot[1]
     price_by_spot_plus = np.sum(price_by_spot_plus[0]) + price_by_spot_plus[1]
     dv = price_by_spot_plus - price_by_spot
@@ -383,7 +336,8 @@ def get_heston__params_from_2bs_prices(spot, call_strike, put_strike, call_vol, 
     return res.x
 
 
-def hedging_product_hestonMC(call_strike, put_strike, days, S, r, steps=24):
+# хэджирование по мотивам hedge reversal
+def hedging_product_hestonMC_old_version(call_strike, put_strike, days, S, r, steps=24):
     M, N = S.shape
     M = 13
 
@@ -476,7 +430,8 @@ def hedging_product_hestonMC(call_strike, put_strike, days, S, r, steps=24):
            intrinsic_put / (M - np.mean(nan_count)), S[12]
 
 
-def hedging_product_heston_df(S, r, params, call_expiration=1 / 365, put_expiration=30 / 365):
+# хэджирование по мотивам hedge reversal
+def hedging_product_heston_df_old_version(S, r, params, call_expiration=1 / 365, put_expiration=30 / 365):
     S = np.array(S)
     df = pd.DataFrame({'Spot': S})
     strikes_call = np.array([1.01 * S[:-1:24]] * 24).T.flatten()
@@ -547,7 +502,7 @@ def get_mc_spot_for_one_iteration(S0, volatility, T=30 / 365, r=0., N=30 * 24):
     return S
 
 
-def hedging_HESTON(S, r, params, call_expiration=1 / 365, put_expiration=30 / 365):
+def hedging_HESTON_product(S, r, params, call_expiration=1 / 365, put_expiration=30 / 365):
     call_strike = 29000.0
     put_strike = 20000
     volatility0 = 0.26758712
@@ -739,7 +694,7 @@ def get_heston_params_by_fitting_surface_from_paper():
                                                  kappa=params[0], theta=params[1], sigma=params[2],
                                                  rho=params[3], v0=params[4], S0=spot, r=r, option_type='CALL')
 
-    plot_price(price_list_BS, price_list_H, 'call', strikes, expirations)
+    # plot_error_surface(price_list_BS, price_list_H, 'call', strikes, expirations)
     # fig = go.Figure()
     #
     # for n in range(len(expirations)):
@@ -861,8 +816,8 @@ def get_heston_params_by_fitting_sabr_surface():
                                                    rho=params[3], v0=params[4], S0=spot, r=r, option_type='PUT')
 
     # print(price_list_H_C)
-    plot_price(price_list_BS_C, price_list_H_C, 'call', strikes_list, times_list[1:])
-    plot_price(price_list_BS_P, price_list_H_P, 'put', strikes_list, times_list[1:])
+    # plot_error_surface(price_list_BS_C, price_list_H_C, 'call', strikes_list, times_list[1:])
+    # plot_error_surface(price_list_BS_P, price_list_H_P, 'put', strikes_list, times_list[1:])
 
 
 def get_bs_prices_for_1d_30d_options(spot, call_strike, put_strike, call_vol, put_vol, r,
@@ -952,17 +907,12 @@ def simple_hedging_BS(S, r, params, days_count, call_expiration=30 / 365, put_ex
     S = spot_bs_mc(days=days, S0=S0, volatility=volatility0, r=r)
     pprint(f'len(S) : {len(S)}', 'c')
 
-    spot_name = './spot_folder/spot' + str(time.time()) + '.csv'
-    pd.DataFrame({'spot': S}).to_csv(spot_name)
-    print(spot_name)
-
-    # S = pd.read_csv('./spot_folder/spot1626760012.523616.csv')['spot'].values
-
     # k_list = [24, 12, 6, 4, 3, 2, 1]
     # k_list = [24, 12, 8, 4, 2, 1]
-
     k_list = [12]
+
     error_list = []
+
     if plot:
         fig = make_subplots(rows=3, cols=3, specs=[[{}, {}, {}],
                                                    [{"colspan": 3}, None, None],
@@ -977,7 +927,6 @@ def simple_hedging_BS(S, r, params, days_count, call_expiration=30 / 365, put_ex
 
             S_ = S[::k]
 
-            pprint(f'len(S_) : {len(S_)}', 'c')
             pprint(f'{steps // k} steps in a day, k = {k}', 'c')
 
             dt = T / (len(S_) - 1)
@@ -986,25 +935,32 @@ def simple_hedging_BS(S, r, params, days_count, call_expiration=30 / 365, put_ex
             volatility = np.std(np.log(S_[1:] / S_[:-1])) * np.sqrt(steps / k * 365)
 
             ds = 0.1
-
             price_call_S_plus_ds = np.array(
                 [price_by_BS(S_[i] + ds, call_strike, T - i * dt_list[-1], volatility, option_type='CALL', r=r)
                  for i in range(len(S_) - 1)])
+            print('P(S + ds) is ready')
 
             price_call_S_minus_ds = np.array(
                 [price_by_BS(S_[i] - ds, call_strike, T - i * dt_list[-1], volatility, option_type='CALL', r=r)
                  for i in range(len(S_) - 1)])
+            print('P(S - ds) is ready')
+
             delta_list = (price_call_S_plus_ds - price_call_S_minus_ds) / (2 * ds)
+
             if delta_list[-1] >= 0.9:
                 delta_list = np.append(delta_list, 1)
+            if delta_list[-1] <= -0.9:
+                delta_list = np.append(delta_list, -1)
             else:
                 delta_list = np.append(delta_list, 0)
+
             delta_list[delta_list > 1] = 1
+            delta_list[delta_list < -1] = -1
 
             price_call_S = np.array(
                 [price_by_BS(S_[i], call_strike, T - i * dt_list[-1], volatility, option_type='CALL', r=r)
                  for i in range(len(S_) - 1)])
-            pprint('len(price), len(delta) ' + str((len(price_call_S), len(delta_list))), 'm')
+            print('P(S) is ready')
 
             V0 = price_call_S[0]
 
@@ -1026,7 +982,7 @@ def simple_hedging_BS(S, r, params, days_count, call_expiration=30 / 365, put_ex
             print(np.sum(X) * (np.exp(r * (T / len(S_))) - 1))
             error1 = V0 + np.sum(R) + np.sum(X) * (np.exp(r * (T / len(S_))) - 1) - P
             error2 = 100 * error1 / call_strike
-            error_list.append(error2)
+            error_list.append(np.abs(error2))
 
             print('Volatility', volatility)
             print('V0        ', V0)
@@ -1038,9 +994,9 @@ def simple_hedging_BS(S, r, params, days_count, call_expiration=30 / 365, put_ex
             pprint(f'Error      {error1:.6f}', 'y')
             pprint(f'Error      {error2:.6f}%', 'y')
             if plot:
-
-                fig.add_trace(go.Histogram(x=np.log(S_[1:] / S_[:-1]), histnorm='probability', name=steps // k, opacity=0.5,
-                                           xbins=dict(size=0.01)), row=1, col=1)
+                fig.add_trace(
+                    go.Histogram(x=np.log(S_[1:] / S_[:-1]), histnorm='probability', name=steps // k, opacity=0.5,
+                                 xbins=dict(size=0.01)), row=1, col=1)
                 fig.add_trace(go.Scatter(x=np.arange(0, len(S), k), y=X, name=steps // k, mode='lines+markers'),
                               row=1, col=3)
                 fig.add_trace(
@@ -1051,23 +1007,22 @@ def simple_hedging_BS(S, r, params, days_count, call_expiration=30 / 365, put_ex
                                mode='lines+markers'),
                     row=3, col=1)
     if plot:
-
         fig.add_trace(go.Scatter(x=dt_list, y=np.abs(error_list), mode='lines+markers', name='error'), row=1, col=2)
         fig.update_xaxes(title_text="ln(returns)", row=1, col=1)
         fig.update_xaxes(title_text="timestep", row=1, col=2)
         fig.update_yaxes(title_text="error", row=1, col=2)
         fig.update_yaxes(title_text="X", row=1, col=3)
         fig.update_yaxes(title_text="Spot", row=2, col=1)
-        fig.update_layout(title_text=f"BS, spot {S0}, strike {call_strike}, r {r}, volatility {volatility0}, days {days}")
+        fig.update_layout(
+            title_text=f"BS, spot {S0}, strike {call_strike}, r {r}, volatility {volatility0}, days {days}")
 
         fig.show()
 
-    return np.abs(100 * error1 / call_strike)
+    return error_list, dt_list
 
 
-def simple_hedging_HESTON(S, r, params, days_count, call_expiration=30 / 365, put_expiration=30 / 365, it=0, fig=None, plot=False):
-    call_strike = 29000.0
-
+def simple_hedging_HESTON(S, r, params, days_count, it=0, fig=None, plot=False, option_type='CALL'):
+    strike = 40000.0
     S0 = 31893.78
 
     pprint(f'len(S) : {len(S)}', 'c')
@@ -1085,11 +1040,11 @@ def simple_hedging_HESTON(S, r, params, days_count, call_expiration=30 / 365, pu
     # k_list = [12]
     error_list = []
 
-    if plot and fig is None:
+    if plot and (fig is None):
         fig = make_subplots(rows=3, cols=3, specs=[[{}, {}, {}],
                                                    [{"colspan": 3}, None, None],
                                                    [{"colspan": 3}, None, None]],
-                            subplot_titles=("Spot returns histogram", "Error", "X", "Spot", 'Delta'),
+                            subplot_titles=("Spot returns histogram", "Error (%)", "X", "Spot", 'Delta'),
                             row_heights=[0.5, 0.25, 0.25])
     dt_list = []
     for k in k_list:
@@ -1106,42 +1061,43 @@ def simple_hedging_HESTON(S, r, params, days_count, call_expiration=30 / 365, pu
             dt_list.append(dt)
 
             print('S', S_[0], S_[-1])
-            # print('T - i*dt_list',
-            #       [T - i * dt for i in range(len(S_) - 1)][0],
-            #       [T - i * dt for i in range(len(S_) - 1)][-2],
-            #       [T - i * dt for i in range(len(S_) - 1)][-1])
 
-            ds = 0.05
-
+            ds = 0.1
             price_call_S_plus_ds = np.array(
-                [price_by_heston(call_strike, T - i * dt, *params, S_[i] + ds, r, 'CALL')
+                [price_by_heston(strike, T - i * dt, *params, S_[i] + ds, r, option_type=option_type)
                  for i in range(len(S_) - 1)])
-            print('call +')
+            print('P(S + ds) is ready')
 
             price_call_S_minus_ds = np.array(
-                [price_by_heston(call_strike, T - i * dt, *params, S_[i] - ds, r, 'CALL')
+                [price_by_heston(strike, T - i * dt, *params, S_[i] - ds, r, option_type=option_type)
                  for i in range(len(S_) - 1)])
 
-            print('call -')
+            print('P(S - ds) is ready')
 
             delta_list = (price_call_S_plus_ds - price_call_S_minus_ds) / (2 * ds)
+
             if delta_list[-1] >= 0.9:
                 delta_list = np.append(delta_list, 1)
+            elif delta_list[-1] <= -0.9:
+                delta_list = np.append(delta_list, -1)
             else:
                 delta_list = np.append(delta_list, 0)
             delta_list[delta_list > 1] = 1
-            # delta_list[delta_list < 0] = 0
+            delta_list[delta_list < -1] = -1
 
             price_call_S = np.array(
-                [price_by_heston(call_strike, T - i * dt, *params, S_[i], r, 'CALL')
+                [price_by_heston(strike, T - i * dt, *params, S_[i], r, option_type)
                  for i in range(len(S_) - 1)])
-            print('call')
+            print('P(S) is ready')
 
             V0 = price_call_S[0]
 
             R = np.array([delta_list[i - 1] * (S_[i] - S_[i - 1]) for i in range(1, len(S_))])
 
-            P = max(0, S_[-1] - call_strike)
+            if option_type == 'CALL':
+                P = max(0, S_[-1] - strike)
+            else:
+                P = max(0, -S_[-1] + strike)
 
             X0 = V0 - delta_list[0] * S0
             X = []
@@ -1156,13 +1112,13 @@ def simple_hedging_HESTON(S, r, params, days_count, call_expiration=30 / 365, pu
             print(np.sum(X) * (np.exp(r * (T / len(S_))) - 1))
             V_N = V0 + np.sum(R) + np.sum(X) * (np.exp(r * (T / len(S_))) - 1)
             error1 = V_N - P
-            error2 = np.abs(100 * error1) / call_strike
-            error_list.append(100 * error1 / call_strike)
+            error2 = np.abs(100 * error1) / strike
+            error_list.append(100 * error1 / strike)
 
             print('V0        ', np.round(V0, 3))
             print('Sum(R_i)  ', np.round(np.sum(R), 3))
-            print('X0        ', np.round(X[0], 3))
-            print('Sum(X_i)  ', np.round(np.sum(X), 3))
+            # print('X0        ', np.round(X[0], 3))
+            # print('Sum(X_i)  ', np.round(np.sum(X), 3))
             print('X*exp  ', np.round(np.sum(X) * (np.exp(r * (T / len(S_))) - 1), 3)),
             print('P         ', np.round(P, 3))
             pprint(f'Error      {error1:.3f}$', 'y')
@@ -1171,7 +1127,8 @@ def simple_hedging_HESTON(S, r, params, days_count, call_expiration=30 / 365, pu
             else:
                 c = 'g'
             pprint(f'Error      {error2:.3f}%', c)
-            if plot and fig is None:
+
+            if plot:
                 hist_data = np.log(S_[1:] / S_[:-1])
                 fig.add_trace(
                     go.Histogram(x=hist_data, histnorm='probability', name=steps // k, opacity=0.5,
@@ -1187,7 +1144,7 @@ def simple_hedging_HESTON(S, r, params, days_count, call_expiration=30 / 365, pu
                     go.Scatter(x=np.arange(0, len(S), k), y=delta_list, name='delta ' + str(steps // k),
                                mode='lines+markers'),
                     row=3, col=1)
-    if plot and fig is None:
+    if plot:
         fig.add_trace(go.Scatter(x=dt_list, y=np.abs(error_list), mode='lines+markers', name='error'), row=1, col=2)
 
         fig.update_xaxes(title_text="ln(S)", row=1, col=1)
@@ -1195,15 +1152,15 @@ def simple_hedging_HESTON(S, r, params, days_count, call_expiration=30 / 365, pu
         fig.update_yaxes(title_text="error", row=1, col=2)
         fig.update_yaxes(title_text="X", row=1, col=3)
         fig.update_yaxes(title_text="Spot", row=2, col=1)
-        fig.update_layout(title_text=f"Heston, spot {S0}, strike {call_strike}, r {r}, params {params}, days {days}")
+        fig.update_layout(title_text=f"Heston, spot {S0}, strike {strike}, r {r}, params {params}, days {days}")
 
         fig.show()
 
-    if fig is not None:
+    if (fig is not None) and (not plot):
         fig.add_trace(
             go.Scatter(x=dt_list, y=np.abs(error_list), mode='lines+markers', name=f'error, it = {it}', opacity=0.7))
 
-    return np.abs(100 * error1 / call_strike), np.abs(error_list), dt_list
+    return np.abs(error_list), dt_list
 
 
 def bs_heston_prices_for_different_maturity():
@@ -1230,27 +1187,35 @@ def bs_heston_prices_for_different_maturity():
     print(bs_prices)
 
 
-def count_mean_error_by_heston_hedging():
+def count_mean_error_by_hedging(method='Heston'):
     # params = [-8.98698206e+00, 1.00000000e-03, 4.81155610e+00, -1.63466446e-01, 5.66211348e-01]
-    params = [0, 1.00000000e-03, 1.81155610e+00, -1.63466446e-01, 5.66211348e-01]
+    # params = [0, 1.00000000e-03, 1.81155610e+00, -1.63466446e-01, 5.66211348e-01]
+    params = [0.1, 1.00000000e-03, 0.81155610e+00, -1.63466446e-01, 2.66211348e-01]
     fig = go.Figure()
     error_matrix = []
-    days_count = 30
+    days_count = 7
     spot = 31893.78
     r = 0.0
-    N = 1000
+    N = 100
+    # option_type = 'PUT'
+    option_type = 'CALL'
     for it in range(N):
-        pprint(f'ITERATION № {it}, heston iterations 10000', color='m')
+        pprint(f'ITERATION № {it}, heston iterations {N}, option type {option_type}', color='m')
         S = spot_heston_mc(days=days_count,
                            kappa=params[0], theta=params[1], sigma=params[2], rho=params[3], v0=params[4],
                            S0=spot, r=r, M=10000)
-        _, error_list, x = simple_hedging_HESTON(S, r, params, days_count, it=it, fig=fig, plot=False)
+        if method == 'Heston':
+            error_list, x = simple_hedging_HESTON(S, r, params, days_count, it=it, fig=fig, plot=False,
+                                                  option_type=option_type)
+        else:
+            error_list, x = simple_hedging_HESTON(S, r, params, days_count, it=it, fig=fig, plot=False,
+                                                  option_type=option_type)
         error_matrix.append(error_list)
 
     fig.add_trace(
         go.Scatter(x=x, y=np.mean(error_matrix, axis=0), mode='lines+markers', name=f'Mean error',
                    marker=dict(color='black')))
-    fig.update_layout(title=f'Days count {days_count}, {params}, N = {N}')
+    fig.update_layout(title=f'{method}, Days count {days_count}, {params}, {option_type}, N = {N}')
 
     fig.show()
     print()
@@ -1312,16 +1277,16 @@ def hedging_heston_or_bs_prices_by_heston_spot(hedging_method='Heston'):
     print('*' * 100, '\nSPOT SAVING')
     S = spot_heston_mc(days=days_count,
                        kappa=params[0], theta=params[1], sigma=params[2], rho=params[3], v0=params[4],
-                       S0=spot, r=r, M=10000)
-    np.save('MC_spot.npy', S)
-    S = np.load('MC_spot.npy')
+                       S0=spot, r=r, M=1000)
+    # np.save('MC_spot.npy', S)
+    # S = np.load('MC_spot.npy')
 
     if hedging_method == 'Heston':
-        simple_hedging_HESTON(S, r, params, days_count, fig=None, plot=True)
+        simple_hedging_HESTON(S, r, params, days_count, fig=None, plot=True, option_type='PUT')
     elif hedging_method == 'BS':
         simple_hedging_BS(S, r, params, days_count, plot=True)
     else:
-        hedging_HESTON(S, r, params)
+        hedging_HESTON_product(S, r, params)
 
 
 def awful_thing():
@@ -1348,10 +1313,6 @@ def awful_thing():
 
     # res = hedging_product_heston_df(S[index], r, params)
 
-    # np.save('save1.npy', res)
-    #
-    # res = np.load('save1.npy', allow_pickle=True)
-    #
     # print('Hedge result (sum)', res[0])
     # print('Intrinsic put', res[3])
     #
@@ -1367,6 +1328,7 @@ def awful_thing():
     # plt.plot(res[5], label='delta put')
     # plt.legend()
     # plt.show()
+
     # print('*' * 100, '\nPRODUCT')
     # res = product_hestonMC(call_strike=call_strike, put_strike=put_strike, days=days_count, S=S, r=r)
     # res = hedging_product_hestonMC(call_strike=call_strike, put_strike=put_strike, days=days_count, S=S, r=r)
@@ -1380,10 +1342,6 @@ def awful_thing():
     #                                                      kappa=params[0], theta=params[1], sigma=params[2],
     #                                                      rho=params[3], v0=params[4], S0=s, r=r,
     #                                                      option_type='CALL'))
-
-    # plt.plot(heston_prices_for_mc_spot)
-    # plt.plot(res[0])
-    # plt.show()
 
     # delta_of_product = delta_by_finite_difference(days=days_count, call_strike=call_strike, put_strike=put_strike,
     #                                               spot=spot, r=r, params=params, price_by_spot=res)
@@ -1403,11 +1361,11 @@ if __name__ == '__main__':
     # bs_heston_prices_for_different_maturity()
 
     # функции для хэджирования с разными сигмами/спотами
-    count_mean_error_by_heston_hedging()
+    count_mean_error_by_hedging(method='BS')
     # count_heston_hedging_by_different_sigma()
 
     # функция, вызывающая хэджирование разными методами
     # hedging_heston_or_bs_prices_by_heston_spot(hedging_method='Heston')
 
-    # что-то с чем-то
+    # что-то с чем-то, рекомендуется удалять не глядя
     # awful_thing()

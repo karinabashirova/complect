@@ -1,10 +1,25 @@
+import numpy as np
+import pandas as pd
+
 import argparse
 import sys
 
 import matplotlib.pyplot as plt
-import numpy as np
+import plotly.graph_objects as go
+
 from scipy.stats import norm
-import pandas as pd
+
+
+def plot_spot_by_MC(S):
+    fig = go.Figure()
+    for m in range(S.shape[0]):
+        fig.add_trace(go.Scatter(x=np.arange(len(S[m])), y=S[m], mode='lines', opacity=0.5, name='S[' + str(m) + ']'))
+
+    fig.add_trace(
+        go.Scatter(x=np.arange(len(S[0])), y=np.mean(S, axis=0), mode='lines+markers', line=dict(color='black'),
+                   name='Mean spot'))
+    fig.update_layout(title='Spot')
+    fig.show()
 
 
 def spot_heston_mc(hours, kappa, theta, sigma, rho, v0, S0, r, M=500, steps=12):
@@ -51,7 +66,7 @@ def spot_heston_mc(hours, kappa, theta, sigma, rho, v0, S0, r, M=500, steps=12):
     return S, V
 
 
-def spot_bs_mc(S0, volatility, r=0, hours=1, M=1000, steps=12):
+def spot_bs_mc(S0, volatility, r=0, hours=1, M=1000, steps=12, echo='off'):
     print(f'SPOT CALCULATING --- {M} iterations')
 
     dt = 1 / 24 / 365 / steps
@@ -61,11 +76,12 @@ def spot_bs_mc(S0, volatility, r=0, hours=1, M=1000, steps=12):
     S = np.full((M, N + 1), S0, dtype=float)
 
     for m in range(M):
-        # if m % 1000 == 0:
-        #     print(m, end=' ')
+        if echo == 'on':
+            if m % 1000 == 0:
+                print(m, end=' ')
 
-        # if m > 0 and m % 10000 == 0 or m == M - 1:
-        #     print()
+            if m > 0 and m % 10000 == 0 or m == M - 1:
+                print()
 
         Z = np.random.normal(size=N)
 
@@ -90,16 +106,18 @@ def get_vp1_value(S0, vol, v1_0, v2_0, p1, method='MC', plot='n'):
 
     if method == 'MC':
         name = 'MC'
-        print('Spot by MC')
+        print('Spot by standard MC (BS)')
         if vol == -1:
             print('Volatility is empty (for e.g. --vol=0.6)')
             sys.exit(2)
-        S = spot_bs_mc(S0, vol, M=10000)
+        S = spot_bs_mc(S0, vol, M=10000, echo='off')
+        # plot_spot_by_MC(S)
     else:
         name = 'Heston_MC'
         print('Spot by Heston MC')
         params = get_heston_params()
         S, _ = spot_heston_mc(1, *params, S0, 0, M=1000)
+        # plot_spot_by_MC(S)
 
     dv1 = v1_0 * p1
     dv2 = []
