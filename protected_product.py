@@ -178,7 +178,7 @@ def return_true_false_from_y_n(letter):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Volatility product')
+    parser = argparse.ArgumentParser(description='Protected product')
 
     parser.add_argument('spot', type=float, help='Spot')
     parser.add_argument('c', type=float, help='Call strike percent')

@@ -71,7 +71,7 @@ def get_surface(data, cut=False, use_weights=False):
     strikes = data.strikes
     times = data.times
     dates = data.dates
-    prices = data.bs_prices
+    prices = data.prices
     spot = data.spot
     today = data.today
 

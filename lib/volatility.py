@@ -353,20 +353,20 @@ class SABRSurface:
                 return self.delta['surface_p'][0]
 
 
-# def get_strike_by_delta(strikes, delta, d):
-#     zipped = sorted(zip(delta, strikes), key=lambda t: t[0])
-#     delta_slice_call, strikes_call = np.array([a for a, b in zipped]), np.array([b for a, b in zipped])
-#     cs1 = PchipInterpolator(delta_slice_call, strikes_call)
-#     new_strike_call = cs1(d)
-#     return new_strike_call
-#
-#
-# def delta_slice_for_new_time(times, strikes, delta, time):
-#     f = interpolate.interp2d(strikes, times, delta)
-#     new_delta = np.array([f(strike, time) for strike in strikes]).flatten()
-#     return new_delta
-#
-#
-# def interpolate_surface(volatility_surface, times, strikes, time, strike):
-#     f = interpolate.interp2d(strikes, times, volatility_surface)
-#     return f(strike, time)[0]
+def get_strike_by_delta(strikes, delta, d):
+    zipped = sorted(zip(delta, strikes), key=lambda t: t[0])
+    delta_slice_call, strikes_call = np.array([a for a, b in zipped]), np.array([b for a, b in zipped])
+    cs1 = PchipInterpolator(delta_slice_call, strikes_call)
+    new_strike_call = cs1(d)
+    return new_strike_call
+
+
+def delta_slice_for_new_time(times, strikes, delta, time):
+    f = interpolate.interp2d(strikes, times, delta)
+    new_delta = np.array([f(strike, time) for strike in strikes]).flatten()
+    return new_delta
+
+
+def interpolate_surface(volatility_surface, times, strikes, time, strike):
+    f = interpolate.interp2d(strikes, times, volatility_surface)
+    return f(strike, time)[0]
