@@ -1,7 +1,7 @@
 from lib.useful_things import *
 
 
-def plot_surface(surface_object, points_objects_list=None):
+def plot_surface(surface_object, points_objects_list=None, vol_list=None, vol_dates=None):
     fig = go.Figure()
 
     fig.add_trace(go.Surface(x=surface_object.strike_prices,
@@ -26,6 +26,8 @@ def plot_surface(surface_object, points_objects_list=None):
                     name=points_objects_list[key].price_type + ' ' + str(surface_object.expiration_dates[n]),
                     mode='markers', hovertext=points_objects_list[key].delta[n],
                     marker=dict(size=3, color=colors[i])))
+    if vol_list is not None and vol_dates is not None:
+        fig.add_trace(go.Scatter3d(x=[surface_object.spot], y=vol_dates, z=[vol_list], mode='lines', line=dict(color='black')))
 
     fig.update_layout(
         title={
