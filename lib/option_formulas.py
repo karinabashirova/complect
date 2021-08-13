@@ -36,7 +36,7 @@ def theta(S, K, T, sigma, option_type, r=0.0):
 
 
 def vega(S, K, T, sigma, r=0.0):
-    return S * pdf(d1(S, K, T, sigma, r)) * np.sqrt(T)  # / 100
+    return S * pdf(d1(S, K, T, sigma, r)) * np.sqrt(T) # / 100
 
 
 def charm(S, K, T, sigma, r=0.0):

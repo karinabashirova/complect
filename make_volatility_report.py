@@ -1,5 +1,6 @@
+import os
 import sys
-from Naked.toolshed.shell import execute_js, muterun_js
+from Naked.toolshed.shell import muterun_js
 import argparse
 
 from IV_RV_regression import make_report
@@ -30,3 +31,4 @@ else:
     sys.exit(1)
 
 make_report(args.n)
+os.startfile(args.n)

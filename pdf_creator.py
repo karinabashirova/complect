@@ -23,7 +23,7 @@ class PDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 11)
         self.cell(self.WIDTH / 2)
-        self.cell(-1, 1, 'Realised and implied volatility', 0, 0, 'R')
+        self.cell(0, 1, 'Realised and implied volatility', 0, 0, 'R')
         self.ln(20)
 
     def footer(self):
@@ -42,6 +42,14 @@ class PDF(FPDF):
     def page_body_one_picture_one_text(self, images, title):
         self.set_font('Arial', size=10)
         self.image(name=images[0], x=20, y=20, w=240)
+        # self.multi_cell(w=0, h=20, txt="Красная линия – реализованная волатильность ETH в зависимости от реализованной волатильности BTC, "
+        #                     "коэффициент beta из линейной регрессии между реализованной волатильностью BTC и реализованной волатильностью ETH. "
+        #                     "Синяя линия – реализованная волатильность ETH в зависимости от реализованной волатильности BTC, "
+        #                     "коэффициент beta из линейной регрессии между spot returns BTC и spot returns ETH. "
+        #                     "Зеленые точки – настоящая реализованной волатильность ETH в зависимости от волатильности BTC. "
+        #                     "Синие точки – настоящая implied volatility ETH. "
+        #                     "Оранжевые точки - implied volatility ETH, посчитанная из implied volatility BTC с "
+        #                     "использованием коэффициента beta. Коэффициент beta из линейной регрессии между spot returns BTC и spot returns ETH.")
         self.image(name=images[1], x=10, y=self.HEIGHT * 0.29, w=self.WIDTH * 1.3)
 
     def page_body_one_picture_one_title(self, image, title):
@@ -100,10 +108,16 @@ file_names_for_rolling_sizes = ['plots//volatility_BTC.png',
                                 ]
 
 
-def create_report(report_name='quantiles.pdf'):
+def create_report(report_name='q.pdf'):
     pdf = PDF()
     pdf.print_page(file_names_for_quantiles)
     pdf.print_page2(file_names_for_rolling_sizes)
 
     pdf.output(name=report_name)
+    os.startfile(report_name)
+
     print('Report is ready')
+
+
+if __name__ == '__main__':
+    create_report()

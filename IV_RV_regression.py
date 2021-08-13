@@ -42,6 +42,12 @@ def count_RV_for_each_asset(filename_btc, filename_eth, first_vol_date, last_vol
 
     df = pd.merge(left=df_eth, right=df_btc, on=['date'], how='left')
 
+    df['RV_btc'] = (np.log(df.Spot_btc / df.Spot_btc.shift(1))).rolling(days * 24).std() * np.sqrt(365 * 24)
+    df['returns_btc'] = np.log(df.Spot_btc / df.Spot_btc.shift(1))
+
+    df['RV_eth'] = (np.log(df.Spot_eth / df.Spot_eth.shift(1))).rolling(days * 24).std() * np.sqrt(365 * 24)
+    df['returns_eth'] = np.log(df.Spot_eth / df.Spot_eth.shift(1))
+
     if cut_dates:
         first_vol_date = datetime.datetime.strptime(first_vol_date, '%Y-%m-%d %H:%M:%S')
         last_vol_date = datetime.datetime.strptime(last_vol_date, '%Y-%m-%d %H:%M:%S')
@@ -49,19 +55,19 @@ def count_RV_for_each_asset(filename_btc, filename_eth, first_vol_date, last_vol
         df_dates = np.array([datetime.datetime.strptime(d, '%Y-%b-%d %H:%M:%S') for d in df.date])
         idx1 = np.argwhere(df_dates == first_vol_date)
         idx2 = np.argwhere(df_dates == last_vol_date)
+        print(idx1, idx2)
         # if idx2[
         try:
-            df = df[idx1[0][0]:idx2[0][0]]
+            df = df[idx1[0][0]:idx2[0][0] + 1]
         except:
+            print('!')
             pass
-    df['RV_btc'] = (np.log(df.Spot_btc / df.Spot_btc.shift(1))).rolling(days * 24).std() * np.sqrt(365 * 24)
-    df['returns_btc'] = np.log(df.Spot_btc / df.Spot_btc.shift(1))
 
-    df['RV_eth'] = (np.log(df.Spot_eth / df.Spot_eth.shift(1))).rolling(days * 24).std() * np.sqrt(365 * 24)
-    df['returns_eth'] = np.log(df.Spot_eth / df.Spot_eth.shift(1))
-
-    return df.RV_btc[days * 24:], df.returns_btc[days * 24:], df.RV_eth[days * 24:], \
-           df.returns_eth[days * 24:], df.Spot_btc[days * 24:], df.Spot_eth[days * 24:], df.date[days * 24:]
+    print(df.date.values[0], df.date.values[days * 24], df.date.values[-1])
+    df.dropna(inplace=True)
+    return df.RV_btc, df.returns_btc, df.RV_eth, df.returns_eth, df.Spot_btc, df.Spot_eth, df.date
+    # return df.RV_btc[days * 24:], df.returns_btc[days * 24:], df.RV_eth[days * 24:], \
+    #        df.returns_eth[days * 24:], df.Spot_btc[days * 24:], df.Spot_eth[days * 24:], df.date[days * 24:]
 
 
 def quantile_in_RV(RV, iv, asset):
@@ -277,91 +283,10 @@ def read_iv_from_files(file_name_btc, file_name_eth):
     iv_btc_list = iv_btc_list.drop_duplicates(subset=['Datetime'], keep='last')
     iv_eth_list.rename(columns={'1m': '1m_eth'}, inplace=True)
     iv_btc_list.rename(columns={'1m': '1m_btc'}, inplace=True)
+    iv_eth_list.rename(columns={'Spot': 'spot_eth'}, inplace=True)
+    iv_btc_list.rename(columns={'Spot': 'spot_btc'}, inplace=True)
     iv_df = pd.merge(iv_eth_list, iv_btc_list, on='Datetime', how='inner')
     return iv_df
-
-
-def count_something_for_mean_reversion_of_IV_ratio(iv_btc, iv_eth, datetimes):
-    iv_ratio = iv_btc / iv_eth
-    max_iv = np.max(iv_ratio)
-    min_iv = np.min(iv_ratio)
-    mean_iv = np.mean(iv_ratio)
-    max_coef = 0.8
-    min_coef = 1.8
-    # max_coef = 0.8
-    # min_coef = 1.8
-    mean_coef = 0.05
-    if max_coef * max_iv < (1 + mean_coef) * mean_iv:
-        print(f'Max coef is too small, should be > {(1 + mean_coef) * mean_iv / max_iv}')
-        sys.exit(2)
-    elif min_coef * min_iv > (1 - mean_coef) * mean_iv:
-        print(f'Min coef is too big, should be < {(1 - mean_coef) * mean_iv / min_iv}')
-        sys.exit(2)
-    mean_reversion = np.zeros(len(iv_ratio))
-    mean_reversion_time = np.zeros(len(iv_ratio))
-    days_count = 7
-    print(f'Real max {max_iv}, {max_iv * max_coef}')
-    print(f'Real min {min_iv}, {min_iv * min_coef}')
-    print(f'Mean {mean_iv * (1 - mean_coef), mean_iv, mean_iv * (1 + mean_coef)}')
-    for i in range(len(iv_ratio) - days_count * 24):
-        if iv_ratio[i] > max_iv * max_coef:
-            for dt in range(days_count * 24):
-                if mean_iv * (1 - mean_coef) < iv_ratio[i + dt] < mean_iv * (1 + mean_coef):
-                    # print('Max', dt, i + dt)
-                    mean_reversion[i] = iv_ratio[i] - mean_iv
-                    mean_reversion_time[i] = dt
-                    break
-        elif iv_ratio[i] < min_iv * min_coef:
-            for dt in range(days_count * 24):
-                if mean_iv * (1 - mean_coef) < iv_ratio[i + dt] < mean_iv * (1 + mean_coef):
-                    # print('Min', dt, i + dt)
-                    mean_reversion[i] = -iv_ratio[i] + mean_iv
-                    mean_reversion_time[i] = dt
-                    break
-    fig = go.Figure()
-    fig.add_trace(go.Scattergl(x=datetimes, y=iv_ratio, name='IV(BTC/IV(ETH))', mode='lines',
-                               line=dict(color='aquamarine')))
-
-    fig.add_trace(go.Scattergl(x=datetimes, y=[max_iv] * len(datetimes), name='max(IV(BTC/IV(ETH)))', mode='lines',
-                               line=dict(color='blue')))
-    fig.add_trace(go.Scattergl(x=datetimes, y=[max_iv * max_coef] * len(datetimes),
-                               name=f'{max_coef}*max(IV(BTC/IV(ETH)))',
-                               mode='lines',
-                               line=dict(color='blue'),
-                               opacity=0.5))
-
-    fig.add_trace(go.Scattergl(x=datetimes, y=[mean_iv * (1 + mean_coef)] * len(datetimes),
-                               name=f'{1 + mean_coef}*mean(IV(BTC/IV(ETH)))',
-                               mode='lines',
-                               line=dict(color='green'),
-                               opacity=0.5))
-    fig.add_trace(go.Scattergl(x=datetimes, y=[mean_iv] * len(datetimes), name='mean(IV(BTC/IV(ETH)))', mode='lines',
-                               line=dict(color='green')))
-    fig.add_trace(go.Scattergl(x=datetimes, y=[mean_iv * (1 - mean_coef)] * len(datetimes),
-                               name=f'{1 - mean_coef}*mean(IV(BTC/IV(ETH)))',
-                               mode='lines',
-                               line=dict(color='green'),
-                               opacity=0.5))
-
-    fig.add_trace(go.Scattergl(x=datetimes, y=[min_iv * min_coef] * len(datetimes),
-                               name=f'{min_coef}*min(IV(BTC/IV(ETH)))',
-                               mode='lines',
-                               line=dict(color='red'),
-                               opacity=0.5))
-    fig.add_trace(go.Scattergl(x=datetimes, y=[min_iv] * len(datetimes), name='min(IV(BTC/IV(ETH)))', mode='lines',
-                               line=dict(color='red')))
-    fig.show()
-
-    fig = make_subplots(rows=3, cols=1, specs=[[{}], [{}], [{}]],
-                        subplot_titles=("Mean reversion for 7 days", 'Time before mean reversion (in hours)',
-                                        "Cumulative mean reversion"),
-                        row_heights=[0.25, 0.25, 0.5]
-                        )
-    fig.add_trace(go.Scattergl(x=datetimes, y=mean_reversion), row=1, col=1)
-    fig.add_trace(go.Scattergl(x=datetimes, y=mean_reversion_time), row=2, col=1)
-    fig.add_trace(go.Scattergl(x=datetimes, y=np.cumsum(mean_reversion)), row=3, col=1)
-    fig.update_xaxes(title_text="datetime")
-    fig.show()
 
 
 def make_report(report_name='quantiles.pdf'):
@@ -382,11 +307,14 @@ def make_report(report_name='quantiles.pdf'):
     iv = read_iv_from_files('volatility_for_50_delta_BTC.csv', 'volatility_for_50_delta_ETH.csv')
     rv_btc, returns_btc, rv_eth, returns_eth, spot_btc, spot_eth, spot_date = \
         count_RV_for_each_asset('BTCUSDT.csv', 'ETHUSDT.csv', first_vol_date=iv.Datetime.values[0],
-                                last_vol_date=iv.Datetime.values[-1],
-                                cut_dates=False)
+                                last_vol_date=iv.Datetime.values[-1], cut_dates=False)
 
+    # Эта вещь делает volatility cones, почему оно так называется, выяснить не удалось.
+    # Там считают минимум, максимум и квантили для волатильностей, полученных с разными .rolling(N)
+    # А еще сравнивают это с IV, время до экспирации которой совпадает с rolling_size)
     quantile_in_RV_for_different_rolling_size(spot_btc, spot_date, 'BTC')
     quantile_in_RV_for_different_rolling_size(spot_eth, spot_date, 'ETH')
+
     # График отношений HV(btc)/HV(eth) и IV(btc)/IV(eth) в зависимости от времени
     # print('*' * 50)
     iv_dates = np.array([datetime.datetime.strptime(d, '%Y-%m-%d %H:%M:%S') for d in iv.Datetime])
@@ -426,13 +354,15 @@ def make_report(report_name='quantiles.pdf'):
                                 cut_dates=True)
     beta_from_returns(rv_btc, returns_btc, rv_eth, returns_eth, iv['1m_btc'].values, iv['1m_eth'].values,
                       iv.Datetime.values)
-
     # beta_from_returns(rv_btc, returns_btc, rv_eth, returns_eth, np.array([iv_btc]), np.array([iv_eth]),
     #                   np.array([date_asset]))
 
-    # Оценка mean reversion поведения
-    # count_something_for_mean_reversion_of_IV_ratio(iv['1m_btc'].values, iv['1m_eth'].values, iv.Datetime.values)
-
+    # Создает отчет (подтягиевает картинки из папки plots, в ней уже лежит файл text.png,
+    # он нужен, потому что я не смогла нормально размещать текст)
+    # multi_cell - попробовала, не вышло, ругается на кодировку
+    # Остальные картинки генерируются кодом выше.
+    # но вообще есть файл make_volatility_report, который запускается скрипт Айдара и сам делает отчет
+    # Еще и откроет сам!
     create_report(report_name)
 
 
