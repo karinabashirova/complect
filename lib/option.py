@@ -7,7 +7,15 @@ def get_years_before_expiration(current_datetime, expiration_datetime):
         current_datetime = datetime.datetime.strptime(current_datetime, '%Y-%m-%d %H:%M:%S')
 
     if type(expiration_datetime) is str:
-        expiration_datetime = datetime.datetime.strptime(expiration_datetime, '%Y-%m-%d %H:%M:%S')
+        try:
+            expiration_datetime = datetime.datetime.strptime(expiration_datetime, '%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            if expiration_datetime[-8:-6] == '24':
+                expiration_datetime = expiration_datetime[:8] + str(int(expiration_datetime[8:10]) + 1) + ' 00' + expiration_datetime[-6:]
+                expiration_datetime = datetime.datetime.strptime(expiration_datetime, '%Y-%m-%d %H:%M:%S')
+            else:
+                print('Error in datetime')
+                sys.exit(1)
 
     diff = expiration_datetime - current_datetime
 
@@ -80,7 +88,8 @@ class Option:
     @expiration_datetime.setter
     def expiration_datetime(self, value):
         self.__expiration_datetime = value
-        self.__years_before_expiration = get_years_before_expiration(self.__current_datetime, self.__years_before_expiration)
+        self.__years_before_expiration = get_years_before_expiration(self.__current_datetime,
+                                                                     self.__years_before_expiration)
 
     @property
     def underlying_asset(self):

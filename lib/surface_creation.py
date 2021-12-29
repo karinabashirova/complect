@@ -67,6 +67,36 @@ def get_data_by_reader(reader, k):
     return Data(all_strikes, times, dates, prices, spot, today)
 
 
+def get_data_by_small_reader(reader):
+    today = reader.today
+    spot = reader.spot
+    dates = [date for date in reader.expiration_dates if date != 'nan']
+    times = [time for time in reader.time_before_expiration if not np.isnan(time)]
+
+    different_strikes_price = dict()
+    different_strikes_price['ask_c'] = [price for price in reader.price['ask_c'] if price != [np.nan]]
+    different_strikes_price['ask_p'] = [price for price in reader.price['ask_p'] if price != [np.nan]]
+    different_strikes_price['bid_c'] = [price for price in reader.price['bid_c'] if price != [np.nan]]
+    different_strikes_price['bid_p'] = [price for price in reader.price['bid_p'] if price != [np.nan]]
+
+    strikes = [list(np.array(strikes)) for strikes in reader.strikes if strikes != [np.nan]]
+    try:
+        all_strikes = np.unique(np.hstack(strikes))
+    except ValueError:
+        all_strikes = strikes
+    prices = {key: np.full((len(times), len(all_strikes)), np.nan) for key in keys}
+
+    for key in keys:
+        for n in range(len(times)):
+            for m in range(len(strikes[n])):
+                index = np.where(all_strikes == strikes[n][m])[0][0]
+                try:
+                    prices[key][n][index] = different_strikes_price[key][n][m]
+                except IndexError:
+                    print(today)
+    return Data(all_strikes, times, dates, prices, spot, today)
+
+
 def get_surface(data, cut=False, use_weights=False):
     strikes = data.strikes
     times = data.times

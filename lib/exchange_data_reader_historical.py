@@ -53,7 +53,7 @@ class HistoricalReader:
         zipped = sorted(zip(today_unique, today_index), key=lambda t: t[0])
         today_unique, today_index = zip(*zipped)
 
-        expiry_real_unique = np.unique(df_all.e.values)
+        expiry_real_unique = np.unique(df_all.exp.values)
         expiry_real_unique = expiry_real_unique[expiry_real_unique != 'exp']
         expiry_real_unique = sorted([datetime.datetime.strptime(d, '%Y-%m-%d %H:%M:%S') for d in expiry_real_unique])
 
@@ -107,8 +107,8 @@ class HistoricalReader:
 
             df_small = df_small.drop(df_small[df_small['k'] == 'k'].index).reset_index(drop=True)
 
-            expiry_unique, expiry_index = np.unique(df_small.e.values, return_index=True)
-            expiry_unique = expiry_unique[expiry_unique != 'e']
+            expiry_unique, expiry_index = np.unique(df_small.exp.values, return_index=True)
+            expiry_unique = expiry_unique[expiry_unique != 'exp']
             expiry_unique = [datetime.datetime.strptime(d, '%Y-%m-%d %H:%M:%S') for d in expiry_unique]
 
             zipped = sorted(zip(expiry_index, expiry_unique), key=lambda t: t[0])
@@ -151,7 +151,7 @@ class HistoricalReader:
 
                     for j in range(len(df_list[i])):
                         strike = float(df_list[i]['k'][j])
-                        spot = float(df_list[i]['s0'][j])
+                        spot = float(df_list[i]['u_price'][j])
 
                         ask_c = float(df_list[i]['ask_c'][j])*spot
                         ask_p = float(df_list[i]['ask_p'][j])*spot
@@ -208,7 +208,7 @@ class HistoricalReader:
                     tmp_bid_p.append([np.nan])
 
             self.today.append(today)
-            self.spot.append(float(df_small.s0[0]))
+            self.spot.append(float(df_small.u_price[0]))
             self.expiration_dates.append(expiry_unique_sorted)
             self.time_before_expiration.append(tmp_time_before_expiration)
             self.strikes.append(tmp_strikes)

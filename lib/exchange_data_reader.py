@@ -7,7 +7,7 @@ import logging
 
 
 class ExchangeDataReader:
-    def __init__(self, filename, max_day_count, min_day_count):
+    def __init__(self, filename, max_day_count, min_day_count, df=None):
         self.filename = filename
         self.expiration_dates = []
         self.time_before_expiration = []
@@ -19,18 +19,23 @@ class ExchangeDataReader:
         self.spot = 0
         self.max_day_count = max_day_count
         self.min_day_count = min_day_count
+        self.df = df
 
     def get_data_from_file(self):
 
         logging.basicConfig(filename='exchange_data_reader_error.log',
                             format='%(asctime)s - %(levelname)s - %(message)s',
                             datefmt='%d-%b-%y %H:%M:%S')
-        try:
-            num = self.get_row_to_start_read(self.filename, 'k')
-            df = self.read_df(self.filename, num)
-        except FileNotFoundError:
-            logging.error(f'File {self.filename} does not exist')
-            sys.exit(1)
+        if self.df is None:
+            try:
+                num = self.get_row_to_start_read(self.filename, 'k')
+                df = self.read_df(self.filename, num)
+
+            except FileNotFoundError:
+                logging.error(f'File {self.filename} does not exist')
+                sys.exit(1)
+        else:
+            df = self.df
 
         day_df = df['q']
         day_df.dropna(inplace=True)
@@ -40,7 +45,7 @@ class ExchangeDataReader:
 
         self.today = day_df.values[0]
 
-        expiry_real_unique, expiry_real_index = np.unique(df.e.values, return_index=True)
+        expiry_real_unique, expiry_real_index = np.unique(df.exp.values, return_index=True)
         zipped = sorted(zip(expiry_real_unique, expiry_real_index), key=lambda t: t[1])
         expiry_real_unique = [a for a, b in zipped]
         expiry_real_index = [b for a, b in zipped]
@@ -56,24 +61,26 @@ class ExchangeDataReader:
         expiry_real_unique = [b for a, b, c in zipped]
         df_list = [c for a, b, c in zipped]
 
-        spot_df = df['s0']
+        spot_df = df['u_price']
         spot_df.dropna(inplace=True)
         if (len(spot_df)) == 0:
-            logging.error("Empty column 's0' in file " + self.filename)
+            logging.error("Empty column 'u_price' in file " + self.filename)
             sys.exit(1)
 
         self.spot = float(spot_df.values[0])
 
         today = pd.to_datetime(self.today, format='%Y-%m-%d %H:%M:%S')
-        if self.max_day_count != -1:
-            expiry_real_unique = np.delete(expiry_real_unique,
-                                           np.where(pd.to_datetime(expiry_real_unique, format='%Y-%m-%d %H:%M:%S') - today >
-                                                    datetime.timedelta(days=int(self.max_day_count), seconds=0, minutes=0,
-                                                                       hours=0)))
-        expiry_real_unique = np.delete(expiry_real_unique,
-                                       np.where(pd.to_datetime(expiry_real_unique, format='%Y-%m-%d %H:%M:%S') - today <
-                                                datetime.timedelta(days=int(self.min_day_count), seconds=0, minutes=0,
-                                                                   hours=0)))
+        # if self.max_day_count != -1:
+        #     expiry_real_unique = np.delete(expiry_real_unique,
+        #                                    np.where(
+        #                                        pd.to_datetime(expiry_real_unique, format='%Y-%m-%d %H:%M:%S') - today >
+        #                                        datetime.timedelta(days=int(self.max_day_count), seconds=0, minutes=0,
+        #                                                           hours=0)))
+        # expiry_real_unique = np.delete(expiry_real_unique,
+        #                                np.where(pd.to_datetime(expiry_real_unique, format='%Y-%m-%d %H:%M:%S') - today <
+        #                                         datetime.timedelta(days=int(self.min_day_count), seconds=0, minutes=0,
+        #                                                            hours=0)))
+
         for i, d in enumerate(expiry_real_unique):
             df_small = df_list[i]
 
@@ -118,7 +125,7 @@ class ExchangeDataReader:
                 today = pd.to_datetime(self.today, format='%Y-%m-%d %H:%M:%S')
 
                 diff = expiration_date - today
-
+                # print('Expiration', expiration_date , today)
                 try:
                     if diff < datetime.timedelta(days=0, seconds=0, minutes=0, hours=0):
                         logging.error("Date is incorrect")
@@ -128,10 +135,8 @@ class ExchangeDataReader:
 
                 hours, remainder = divmod(diff.seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
-
                 self.time_before_expiration.append(
                     diff.days / 365 + hours / (365 * 24) + minutes / (365 * 24 * 60) + seconds / (365 * 24 * 60 * 60))
-
                 self.expiration_dates.append(expiry_real_unique[i])
 
                 self.strikes.append(df_small['k'].astype('float').values.tolist())
@@ -151,16 +156,18 @@ class ExchangeDataReader:
             logging.error("File " + file_name + " is empty")
             sys.exit(1)
 
-        for c in ['k', 'e']:
+        for c in ['k', 'exp']:
             if df_all[str(c)].isnull().values.any():
                 logging.error("Not enough values in file " + file_name + " in column '"
                               + str(c) + "'")
                 sys.exit(1)
 
-        if list(df_all.columns) != ['Unnamed: 0', 'k', 'bid_c', 'ask_c', 'mark_c', 'bid_p', 'ask_p',
-                                    'mark_p', 'e', 'q', 'qty_p', 'qty_c', 's0']:
-            logging.error("Not enough columns in file " + file_name)
-            sys.exit(1)
+        # if list(df_all.columns) != ['Unnamed: 0', 'k', 'bid_c', 'ask_c', 'mark_c', 'bid_p', 'ask_p',
+        #                             'mark_p', 'exp', 'q', 'qty_p', 'qty_c', 's0']:
+        # if list(df_all.columns) != ['Unnamed: 0', 'k', 'bid_c', 'ask_c', 'mark_c', 'bid_p', 'ask_p',
+        #                                 'mark_p', 'exp', 'q', 'qty_p', 'qty_c', 's0']:
+        #     logging.error("Not enough columns in file " + file_name)
+        #     sys.exit(1)
 
         return df_all
 
